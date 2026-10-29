@@ -1,0 +1,76 @@
+import time
+from z3 import *
+
+def verify_celestial_kinematics(scenario_name, target_acceleration, mass_loss_observed):
+    print(f"\n--- Weryfikacja L0-ISM: {scenario_name} ---")
+    
+    # Inicjalizacja środowiska Z3
+    solver = Solver()
+    start_time = time.perf_counter()
+    
+    # Deklaracja zmiennych wektora stanu na Warstwie Zerowej (Layer 0)
+    s_rho = Int('s_rho')       # Zmiana masy/gęstości (np. wygazowywanie)
+    s_H = Int('s_H')           # Skok pędu / Przyspieszenie niegrawitacyjne
+    s_Lambda = Int('s_Lambda') # Przesunięcie lokalnego pola topologicznego (energia)
+    
+    # 1. Reguła siatki: Dyskretna domena 19-stanowa S ∈ {-9, ..., +9}
+    for var in [s_rho, s_H, s_Lambda]:
+        solver.add(And(var >= -9, var <= 9))
+        
+    # 2. Bezwzględne Prawo Zachowania Strumienia (L0-ISM Invariant)
+    # Suma zmian w systemie musi wynosić zero.
+    solver.add(s_rho + s_H + s_Lambda == 0)
+    
+    # 3. Parametry obserwacyjne (Symulacja danych z teleskopu)
+    # Obserwujemy skok pędu (przyspieszenie)
+    solver.add(s_H == target_acceleration)
+    
+    if mass_loss_observed:
+        # Naturalna kometa: przyspieszenie wymaga odrzucenia masy (wygazowywania)
+        solver.add(s_rho < 0)
+    else:
+        # Anomalia 'Oumuamua: brak warkocza, brak wygazowywania, brak utraty masy
+        solver.add(s_rho == 0)
+        
+    # 4. Ewaluacja w solverze Z3
+    result = solver.check()
+    execution_time = (time.perf_counter() - start_time) * 1000  # ms
+    
+    if result == sat:
+        m = solver.model()
+        print(f"[STATUS] SAT: Wektor poprawny fizycznie. Czas: {execution_time:.3f} ms")
+        print(f" -> Skok Pędu (s_H): {m[s_H].as_long()}")
+        print(f" -> Utrata Masy (s_rho): {m[s_rho].as_long()}")
+        print(f" -> Zmiana Topologiczna (s_Lambda): {m[s_Lambda].as_long()}")
+        
+        if m[s_Lambda].as_long() != 0:
+            print(" [!] WYKRYTO SZTUCZNĄ KOREKCJĘ ORBITY (Operator RESO).")
+    else:
+        print(f"[STATUS] UNSAT: Naruszenie inwariantu! Czas: {execution_time:.3f} ms")
+        print(" -> AKTYWACJA ODBICIA KWANTOWEGO: -999 HARD_STOP")
+
+# Uruchomienie scenariuszy testowych
+if __name__ == "__main__":
+    # Scenariusz 1: Zwykła kometa zbliżająca się do Słońca
+    # Przyspieszenie (+3), zaobserwowano wygazowywanie masy
+    verify_celestial_kinematics(
+        scenario_name="Naturalna Kometa (wygazowywanie termiczne)",
+        target_acceleration=3,
+        mass_loss_observed=True
+    )
+    
+    # Scenariusz 2: Anomalia 'Oumuamua 
+    # Przyspieszenie (+3), ale ZUPEŁNY BRAK wygazowywania (stała masa)
+    verify_celestial_kinematics(
+        scenario_name="Anomalia 'Oumuamua (Sztuczny Pręt L0)",
+        target_acceleration=3,
+        mass_loss_observed=False
+    )
+    
+    # Scenariusz 3: Złamanie fizyki (Niemożliwy skok bez kompensacji)
+    # Próba uzyskania anomalnego przyspieszenia (+10), przekraczająca limit nasycenia siatki (9)
+    verify_celestial_kinematics(
+        scenario_name="Naruszenie Limitu Bekensteina (s_H > 9)",
+        target_acceleration=10,
+        mass_loss_observed=False
+    )
