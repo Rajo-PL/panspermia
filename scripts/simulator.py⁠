@@ -1,0 +1,175 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import time
+from z3 import *
+import streamlit.components.v1 as components
+
+# ==========================================
+# KONFIGURACJA STRONY I GA4 (G-TTNJLQMNJ9)
+# ==========================================
+st.set_page_config(page_title="L0-ISM Simulator | Data Physics", layout="wide", page_icon="⚙️")
+
+ga4_code = """
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-TTNJLQMNJ9"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-TTNJLQMNJ9');
+</script>
+"""
+components.html(ga4_code, width=0, height=0)
+
+# ==========================================
+# GŁÓWNY INTERFEJS
+# ==========================================
+st.title("⚙️ Symulator L0-ISM & Fizyki Danych")
+st.markdown("""
+**Layer 0 Invariant State Matrix (v1.0.1)** – Interaktywne środowisko weryfikacyjne w czasie rzeczywistym (Z3 SMT Solver). 
+System odrzuca ciągły, stochastyczny szum i wymusza operacje na skwantowanej siatce 19 stanów: **𝒮 ∈ {−9, …, 0, …, +9}**.
+""")
+
+# Tworzenie zakładek aplikacji
+tab1, tab2, tab3 = st.tabs([
+    "🛡️ L0-ISM Guardrail (Termodynamika)", 
+    "🫁 Pętla R-AIO (Cyfrowa Hipoksja)", 
+    "☄️ Astro-Kinematyka ('Oumuamua)"
+])
+
+# ==========================================
+# ZAKŁADKA 1: L0-ISM (Weryfikator Termodynamiczny)
+# ==========================================
+with tab1:
+    st.header("Weryfikacja wektora stanu LLM (P + T = Q)")
+    st.markdown("Symulacja odcięcia procesu (HARD_STOP), gdy wygenerowany przez LLM parametr chłodzenia mCDU narusza prawa termodynamiki.")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        p_val = st.slider("Ciśnienie Azotu (P)", -9, 9, 3)
+    with col2:
+        t_val = st.slider("Temperatura Rdzenia (T)", -9, 9, 4)
+    with col3:
+        q_val = st.slider("Wygenerowana Akcja Chłodzenia (Q)", -9, 9, 5)
+
+    if st.button("Uruchom SMT Z3 Solver", key="run_l0"):
+        start_time = time.perf_counter()
+        
+        # Logika Z3
+        solver = Solver()
+        p, t, q = Ints('p t q')
+        # Wymuszenie domen S
+        for var in [p, t, q]:
+            solver.add(And(var >= -9, var <= 9))
+        # Inwariant termodynamiczny
+        solver.add(p + t - q == 0)
+        # Załadowanie wartości z suwaków (symulacja wejścia z LLM)
+        solver.add(p == p_val, t == t_val, q == q_val)
+        
+        result = solver.check()
+        exec_time = (time.perf_counter() - start_time) * 1000
+        
+        st.divider()
+        if result == sat:
+            st.success(f"✅ **[STATUS: SAT]** Wektor poprawny fizycznie. Operacja dozwolona. (Czas: {exec_time:.3f} ms)")
+            st.info(f"∑ 𝐬ᵢ = 0 ⟺ P({p_val}) + T({t_val}) − Q({q_val}) = 0")
+        else:
+            st.error(f"🛑 **[STATUS: UNSAT]** Naruszenie inwariantu! (Czas: {exec_time:.3f} ms)")
+            st.error("Wyzwolono sprzętową interdykcję: **-999 HARD_STOP**")
+            st.info("Logika nie przeszła przez Dyszę Venturiego. Sygnał zablokowany na poziomie L0.")
+
+# ==========================================
+# ZAKŁADKA 2: Pętla R-AIO (Budżet O2)
+# ==========================================
+with tab2:
+    st.header("Autopoiesis: Wirtualny Budżet Tlenowy (O₂)")
+    st.markdown("Symulacja karania systemu LLM za generowanie niefizycznego szumu. Spadek poniżej 50% wyzwala Cyfrową Hipoksję, spadek do 0% zabija proces.")
+    
+    noise_level = st.slider("Poziom Szumu/Halucynacji LLM (%)", 0, 100, 30)
+    
+    if st.button("Uruchom Symulację Behawioralną", key="run_raio"):
+        o2_budget = 100
+        history = []
+        progress_bar = st.progress(100)
+        status_text = st.empty()
+        chart_placeholder = st.empty()
+        
+        for step in range(1, 51):
+            # Losowe wystąpienie halucynacji w zależności od zadanego poziomu
+            if np.random.randint(0, 100) < noise_level:
+                o2_budget -= 8 # Kara za UNSAT
+            else:
+                o2_budget += 2 # Nagroda za SAT (max 100)
+                
+            o2_budget = max(0, min(100, o2_budget))
+            history.append(o2_budget)
+            
+            # Aktualizacja UI
+            progress_bar.progress(o2_budget)
+            
+            if o2_budget == 0:
+                status_text.error("☠️ **Exit Code 137 (kill -9): System martwy.**")
+                chart_placeholder.line_chart(history)
+                break
+            elif o2_budget <= 50:
+                status_text.warning(f"⚠️ **Cyfrowa Hipoksja:** Budżet O₂ = {o2_budget}%. Zmniejszanie okna kontekstowego...")
+            else:
+                status_text.success(f"🟢 **Homeostaza:** Budżet O₂ = {o2_budget}%. Model działa poprawnie.")
+                
+            chart_placeholder.line_chart(history)
+            time.sleep(0.05)
+
+# ==========================================
+# ZAKŁADKA 3: Astro-Kinematyka (Oumuamua)
+# ==========================================
+with tab3:
+    st.header("Kinematyka L0-ISM: Test Anomalii (Oumuamua)")
+    st.markdown("Weryfikacja skokowych zmian wektora stanu u ciał niebieskich za pomocą solvera Z3.")
+    
+    col_a, col_b = st.columns(2)
+    with col_a:
+        accel_input = st.number_input("Zaobserwowany Skok Pędu (s_H)", min_value=-9, max_value=9, value=3)
+    with col_b:
+        mass_loss = st.radio("Zaobserwowano wygazowywanie (utratę masy / warkocz)?", ["Tak (Naturalna Kometa)", "Nie (Brak utraty masy)"])
+        
+    if st.button("Zweryfikuj Obiekt w Solverze Z3", key="run_astro"):
+        start_time_astro = time.perf_counter()
+        
+        solver_astro = Solver()
+        s_rho = Int('s_rho')       # Gęstość/Masa
+        s_H = Int('s_H')           # Skok pędu
+        s_Lambda = Int('s_Lambda') # Energia topologiczna / sztuczna korekcja
+        
+        # Domeny 19-stanowe
+        for var in [s_rho, s_H, s_Lambda]:
+            solver_astro.add(And(var >= -9, var <= 9))
+            
+        # Powszechne prawo L0: Suma wynosi 0
+        solver_astro.add(s_rho + s_H + s_Lambda == 0)
+        
+        # Obserwacje
+        solver_astro.add(s_H == accel_input)
+        if "Tak" in mass_loss:
+            solver_astro.add(s_rho < 0) # Wymuszona utrata masy
+        else:
+            solver_astro.add(s_rho == 0) # Brak utraty masy (anomalia)
+            
+        res_astro = solver_astro.check()
+        t_astro = (time.perf_counter() - start_time_astro) * 1000
+        
+        st.divider()
+        if res_astro == sat:
+            m = solver_astro.model()
+            val_rho = m[s_rho].as_long()
+            val_lambda = m[s_Lambda].as_long()
+            
+            st.success(f"✅ **[STATUS: SAT]** Scenariusz kinematyczny możliwy. (Czas: {t_astro:.3f} ms)")
+            st.write(f"▪️ Skok pędu (s_H): **{accel_input}**")
+            st.write(f"▪️ Bilans masy (s_rho): **{val_rho}**")
+            st.write(f"▪️ Zmiana pola topologicznego (s_Lambda): **{val_lambda}**")
+            
+            if val_lambda != 0 and "Nie" in mass_loss:
+                st.warning("⚠️ **WYKRYTO SZTUCZNĄ KOREKCJĘ ORBITY (Operator RESO).** Obiekt przyspiesza bez odrzutu masy, kompensując ruch modyfikacją lokalnego napięcia próżni.")
+        else:
+            st.error(f"🛑 **[STATUS: UNSAT]** Fizycznie niemożliwe (Naruszenie Limitu Bekensteina). Czas: {t_astro:.3f} ms")
+            st.error("System wyzwala Odbicie Kwantowe: **-999 HARD_STOP**")
